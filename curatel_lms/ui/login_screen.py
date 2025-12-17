@@ -1,0 +1,447 @@
+# curatel_lms/ui/login_screen.py
+
+# Provides user authentication and password recovery functionality
+
+import os
+import re
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QMessageBox, QDialog,
+    QGraphicsDropShadowEffect
+)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QColor, QIcon, QCursor
+
+class ResetPasswordDialog(QDialog):
+    # Password reset dialog
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Curatel - Password Reset")
+        self.setFixedSize(500, 350)
+        self.setStyleSheet("background-color: #3C2A21;")
+        self.setup_ui()
+        self._center_window()
+
+    def setup_ui(self):
+        # Build reset dialog UI
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 30, 40, 40)
+    
+        # Reset password instructions
+        subtitle = QLabel(
+            "Enter your registered email address to\n"
+            "receive password reset instructions"
+        )
+        subtitle.setFont(QFont("Montserrat", 15, QFont.Weight.Bold))
+        subtitle.setStyleSheet("color: #FFFFFF;")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+        layout.addSpacing(50)
+
+        # Email label
+        email_label = QLabel("Email Address")
+        email_label.setFont(QFont("Montserrat", 12, QFont.Weight.Normal))
+        email_label.setStyleSheet("color: #FFFFFF;")
+        layout.addWidget(email_label)
+        layout.addSpacing(5)
+
+        # Email input
+        self.email_input = QLineEdit()
+        self.email_input.setFixedHeight(50)
+        self.email_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #FFFFFF;
+                border: none;
+                border-radius: 20px;
+                padding: 12px 20px;
+                font-family: Montserrat;
+                font-size: 12px;
+                color: #000000;
+            }
+            QLineEdit:focus { background-color: #FFFFFF; }
+            QLineEdit::placeholder { color: gray; }
+        """)
+        layout.addWidget(self.email_input)
+        layout.addSpacing(50)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        send_btn = QPushButton("Send")
+        send_btn.setFont(QFont("Montserrat", 15, QFont.Weight.Bold))
+        send_btn.setFixedSize(135, 50)
+        send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #8BAE66;
+                color: white;
+                border: none;
+                border-radius: 20px;
+            }
+            QPushButton:hover { background-color: #A3B087; }
+        """)
+        send_btn.clicked.connect(self._send_reset)
+        btn_layout.addWidget(send_btn)
+
+        btn_layout.addSpacing(20)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFont(QFont("Montserrat", 15, QFont.Weight.Bold))
+        cancel_btn.setFixedSize(135, 50)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #AF3E3E;
+                color: white;
+                border: none;
+                border-radius: 20px;
+            }
+            QPushButton:hover { background-color: #CD5656; }
+        """)
+        cancel_btn.clicked.connect(self.close)
+        btn_layout.addWidget(cancel_btn)
+
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+        layout.addStretch()
+
+    def _send_reset(self):
+        # Validate and send reset email
+        email = self.email_input.text().strip()
+
+        if not email:
+            QMessageBox.warning(self, "Error", "Please enter your email address.")
+            return
+
+        if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+            QMessageBox.warning(self, "Error", "Please enter a valid email address.")
+            return
+
+        QMessageBox.information(self, "Success", "Password reset instructions sent to your email.")
+        print(f"[INFO] Password reset sent to: {email}")
+        self.close()
+
+    def _center_window(self):
+        # Center dialog on screen
+        screen = self.screen().geometry()
+        self.move(
+            (screen.width() - self.width()) // 2,
+            (screen.height() - self.height()) // 2
+        )
+
+class LoginScreen(QMainWindow):
+    # Main login window
+    
+    def __init__(self, db=None):
+        super().__init__()
+        self.db = db
+        self.closing_without_prompt = False
+        self.password_visible = False
+        
+        # Load icons
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.icon_open = QIcon(os.path.join(self.base_dir, "assets", "eye_open.png"))
+        self.icon_closed = QIcon(os.path.join(self.base_dir, "assets", "eye_closed.png"))
+
+        self.setup_ui()
+        self.show_fullscreen()
+
+    def setup_ui(self):
+        # Build main window
+        self.setWindowTitle("Curatel - Library Management System")
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Set background
+        bg_path = os.path.join(self.base_dir, "assets", "curatel_bg.png")
+
+        if os.path.exists(bg_path):
+            bg_path = bg_path.replace("\\", "/")
+            central_widget.setStyleSheet(
+                f"""
+                QWidget {{
+                    background-image: url('{bg_path}');
+                    background-position: center;
+                    background-repeat: no-repeat;
+                    background-size: cover;
+                }}
+                """
+            )
+        else:
+            central_widget.setStyleSheet("background-color: #8B7E66;")
+
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 80, 0, 0)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._create_login_form(main_layout)
+
+    def _create_login_form(self, parent_layout):
+        # Create login form
+        form_container = QWidget()
+        form_container.setFixedSize(500, 550)
+        form_container.setStyleSheet("""
+            background-color: transparent;
+            border: 1px solid #FFFFFF;
+            border-radius: 50px;
+        """)
+
+        # Add shadow
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(100)
+        shadow.setColor(QColor(0, 0, 0, 200))
+        shadow.setOffset(30, 30)
+        form_container.setGraphicsEffect(shadow)
+
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setSpacing(20)
+        form_layout.setContentsMargins(50, 30, 50, 50)
+        form_layout.addSpacing(20)
+
+        # Welcome text
+        welcome_msg = QLabel("Welcome, Sam!\nSign in to manage book collections")
+        welcome_msg.setFont(QFont("Montserrat", 15, QFont.Weight.Bold))
+        welcome_msg.setStyleSheet("color: white; background: transparent; border: none;")
+        welcome_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        welcome_msg.setWordWrap(True)
+        form_layout.addWidget(welcome_msg)
+        form_layout.addSpacing(30)
+
+        # Username label
+        username_label = QLabel("Username")
+        username_label.setFont(QFont("Montserrat", 11, QFont.Weight.Normal))
+        username_label.setStyleSheet("color: white; background: transparent; border: none;")
+        form_layout.addWidget(username_label)
+
+        # Username input
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Enter your username")
+        self.username_input.setFixedHeight(50)
+        self.username_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid black;
+                border-radius: 20px;
+                padding: 12px 20px;
+                font-size: 12px;
+                color: black;
+                background: white;
+            }
+            QLineEdit:focus { background-color: white; color: black; }
+            QLineEdit::placeholder { color: gray; }
+        """)
+        form_layout.addSpacing(-20)
+        form_layout.addWidget(self.username_input)
+
+        # Password label
+        password_label = QLabel("Password")
+        password_label.setFont(QFont("Montserrat", 11, QFont.Weight.Normal))
+        password_label.setStyleSheet("color: #FFFFFF; background: transparent; border: none;")
+        form_layout.addWidget(password_label)
+        form_layout.addSpacing(-10)
+
+        # Password field with eye icon
+        password_container = QWidget()
+        password_container.setStyleSheet("background: transparent; border: none;")
+        container_layout = QVBoxLayout(password_container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+
+        self.password_input = QLineEdit(password_container)
+        self.password_input.setPlaceholderText("Enter your password")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setFixedHeight(50)
+        self.password_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid black;
+                border-radius: 20px;
+                padding: 12px 20px;
+                padding-right: 50px;
+                font-size: 12px;
+                color: black;
+                background: white;
+            }
+            QLineEdit:focus { background-color: white; color: black; }
+            QLineEdit::placeholder { color: gray; }
+        """)
+        self.password_input.returnPressed.connect(self._handle_login)
+        container_layout.addWidget(self.password_input)
+
+        # Eye toggle
+        self.toggle_password_btn = QPushButton(self.password_input)
+        self.toggle_password_btn.setFixedSize(20, 25)
+        self.toggle_password_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.toggle_password_btn.setIcon(self.icon_closed)
+        self.toggle_password_btn.setIconSize(self.toggle_password_btn.size())
+        self.toggle_password_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                padding: 0;
+            }
+        """)
+        self.toggle_password_btn.clicked.connect(self._toggle_password_visibility)
+
+        form_layout.addSpacing(-10)
+        form_layout.addWidget(password_container)
+        self._position_eye_icon()
+        
+        form_layout.addSpacing(50)
+
+        # Sign In button
+        self.signin_btn = QPushButton("Sign In")
+        self.signin_btn.setFont(QFont("Montserrat", 13, QFont.Weight.Bold))
+        self.signin_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.signin_btn.setFixedHeight(50)
+        self.signin_btn.setStyleSheet("""
+            QPushButton {
+                color: white;
+                border: none;
+                border-radius: 20px;
+                background: #8B7E66;
+            }
+            QPushButton:hover { background-color: #7A6D55; }
+        """)
+        self.signin_btn.clicked.connect(self._handle_login)
+        form_layout.addWidget(self.signin_btn)
+
+        form_layout.addSpacing(-15)
+
+        # Forgot password link
+        forgot_btn = QPushButton("Forgot Password?")
+        forgot_btn.setFont(QFont("Montserrat", 11, QFont.Weight.Bold))
+        forgot_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        forgot_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #FFFFFF;
+                text-decoration: underline;
+            }
+            QPushButton:hover { color: black; }
+        """)
+        forgot_btn.clicked.connect(self._show_reset_password)
+        form_layout.addWidget(forgot_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        parent_layout.addWidget(form_container, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def _position_eye_icon(self):
+        # Position eye icon inside password field
+        if not hasattr(self, 'password_input') or not hasattr(self, 'toggle_password_btn'):
+            return
+
+        input_height = self.password_input.height()
+        button_size = 25
+        right_margin = 15
+
+        x = self.password_input.width() - button_size - right_margin
+        y = int((input_height - button_size) / 2)
+
+        self.toggle_password_btn.setGeometry(x, y, button_size, button_size)
+        self.toggle_password_btn.raise_()
+        
+    def resizeEvent(self, event):
+        # Reposition icon on resize
+        super().resizeEvent(event)
+        self._position_eye_icon()
+
+    def _toggle_password_visibility(self):
+        # Toggle password visibility
+        if self.password_visible:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.toggle_password_btn.setIcon(self.icon_closed)
+            self.password_visible = False
+        else:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.toggle_password_btn.setIcon(self.icon_open)
+            self.password_visible = True
+
+    def _handle_login(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+
+        # Check for empty fields
+        if not username and not password:
+            QMessageBox.warning(self, "Error", "Please enter both username and password.")
+            return
+        if not username:
+            QMessageBox.warning(self, "Error", "Please enter your username.")
+            return
+        if not password:
+            QMessageBox.warning(self, "Error", "Please enter your password.")
+            return
+
+        # Define password validation regex
+        password_pattern = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W]).{7,}$"
+        is_password_valid = re.search(password_pattern, password) is not None
+
+        # Demo credentials
+        valid_username = "slav"
+        valid_password = "!Slav1"
+
+        # Validate credentials
+        username_match = (username == valid_username)
+        password_match = (password == valid_password)
+
+        if username_match and password_match:
+            QMessageBox.information(self, "Success", f"Welcome, {username}!")
+            self._show_dashboard()
+        elif not username_match and not password_match:
+            # Both incorrect
+            msg = (
+                "Incorrect username and password. Ensure the inputs are correct and meet the following requirements:\n\n"
+                "Password must:\n"
+                "⦁ Be at least 7 characters long\n"
+                "⦁ Contain at least one uppercase letter\n"
+                "⦁ Contain at least one lowercase letter\n"
+                "⦁ Contain at least one number or special character"
+            )
+            QMessageBox.critical(self, "Login Failed", msg)
+        elif not username_match:
+            # Only username wrong
+            QMessageBox.critical(self, "Login Failed", "Incorrect username. Ensure the input is correct.")
+        elif not password_match:
+            # Only password wrong (even if format is valid, it just doesn't match)
+            # But we still show format requirements to guide user
+            msg = (
+                "Incorrect password. Ensure the input is correct and meets the following requirements:\n\n"
+                "⦁ Be at least 7 characters long\n"
+                "⦁ Contain at least one uppercase letter\n"
+                "⦁ Contain at least one lowercase letter\n"
+                "⦁ Contain at least one number or special character"
+            )
+            QMessageBox.critical(self, "Login Failed", msg)
+
+    def _show_reset_password(self):
+        # Open reset dialog
+        ResetPasswordDialog(self).exec()
+
+    def _show_dashboard(self):
+        # Open main window with integrated navigation
+        try:
+            from curatel_lms.ui.window import MainWindow
+            self.main_window = MainWindow(self.db)
+            self.main_window.show()
+            self.closing_without_prompt = True
+            self.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", "Failed to open main window")
+            print(f"[ERROR] Main window error: {e}")
+
+    def show_fullscreen(self):
+        # Maximize window
+        self.setWindowState(Qt.WindowState.WindowMaximized)
+        self.showMaximized()
+
+    def closeEvent(self, event):
+        # Confirm exit
+        if self.closing_without_prompt:
+            event.accept()
+            return
+
+        reply = QMessageBox.question(
+            self, "Exit", "Are you sure you want to quit?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        event.accept() if reply == QMessageBox.StandardButton.Yes else event.ignore()
